@@ -15,3 +15,7 @@ A python script that creates a dl object
 without reading it from a pkl file. Again, the user is prompted for
 the number of epochs. Other parameters are currently hard-coded.
 
+These scripts require the presence of mianalyzer modules in the import path.
+The required directories are mia/dl and mia/util, which can be found on the
+MIAnalyzer github page:
+https://github.com/MIAnalyzer/MIA/
