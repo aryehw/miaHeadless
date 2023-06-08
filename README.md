@@ -7,7 +7,7 @@ A jupyter script that can either load a dl object from a pkl file, or set up the
 ## train_headless.py 
 A python script that reads the dl structure
 from a pkl file. The number of epochs can be entered. The other 
-dl parameters are as defined in the pl file, created by mianalyzer
+dl parameters are as defined in the pkl file, created by mianalyzer
 with "Save dl object..." action.
 
 ## train_headless_noPkl.py 
