@@ -3,10 +3,6 @@
 Created on Tue Aug 24 16:28:55 2021
 
 @author: koerber
-
-Modifed by Aryeh Weiss
-
-Last modified: 08 June 2023
 """
 
 
@@ -18,9 +14,9 @@ import glob
 import matplotlib.pyplot as plt
 import sys
 import tensorflow as tf
+from dl.DeepLearning import *
 
 os.environ["CUDA_VISIBLE_DEVICES"]="0" # set GPU if multiple present
-
 
 def main():
 
@@ -53,23 +49,14 @@ def main():
         trainingdata = None
         predictionFolder = None
 
-# the pkl directory contains the pkl files that hold a DeepLearning structure that defines the DL model
-# If the dl object is directly created then the pkl fileis not needed.
-    pklDir = input('Enter pkl path or use default\n') or pklDir
-
 # the model directory will receive the trained model
     modelDir = input('Enter model output directory or default\n') or modelDir
     
     loadweights = None
 
-# modelname is the name of the pkl file without its pkl  extension.
-# a pkl file holds a data structure or object. IN this case, it is expected to hold a DeepLearning object that was saved
-# using File>Save DL Object... in mianalyzer. 
-# If the dl object is directly created then this is not needed.
-    modelname = input("Enter modelname without extension or use default") or modelname
 
 # stem, pop, background and unlabeled
-# We should have a single cell where aall of the model and training parameters are set
+# We should have a single cell where all of the model and training parameters are set
     numclasses = 4
 
 # trainingdata is a directory that holds the annotated images. The labels must be in trainingdata/Segmentation_labels/
@@ -79,20 +66,47 @@ def main():
 
     print("model: ", modelname)
 
+    '''
+    Creates the dl object. Default is UNet, resnet152, 100 epochs,
+    scaleFactor is 0.5, and learning rate is 0.001.
+    All the other parmeters are the defaults of the dl object.
+    '''
 
-        
-    print('load settings')
-#    filehandler = open(modelname + '.pkl', 'rb')
-    filehandler = open(pklDir + modelname + '.pkl', 'rb')
+    print(os.getcwd())
 
-    dl = pickle.load(filehandler)
 
-    print('loaded pkl')
-#    sys.exit()
+   
+    def createDL( epochs=100, scaleFactor=0.5, learning_rate = 0.001):
+        dl = DeepLearning()
+        dl.epochs = epochs
+        dl.ImageScaleFactor = scaleFactor
+    #    dl.Mode = Segmentation()
+        dl.learning_rate = learning_rate
+        dl.Mode.architecture = 'UNet'
+        dl.Mode.backbone = 'resnet152'
+        return dl
+
+    '''
+    create the dl object and verify that it is initialized. 
+    '''
 
 #   get number of epochs for this run
     epochs = input('Enter number of epochs, or enter for default (50)\n') or '50'
-    dl.epochs = int(epochs)
+    dl = createDL( int(epochs), scaleFactor=0.5, learning_rate = 0.002)
+
+# pod, stem, background, and unlabeled (for deleaved soybean plants)
+    numClasses =4
+
+    print('init model')
+    dl.initModel(numclasses)
+
+    dl.Model = dl.Mode.getModel(numClasses, 3)
+
+    print('load model')
+    if loadweights is not None:
+        dl.Model.load_weights(loadweights)
+
+    print(dl.initialized)
     
     print('init model')
     
@@ -104,8 +118,12 @@ def main():
 #    dl.initModel(numclasses)
     policy = tf.keras.mixed_precision.Policy('float32')
     print('after policy')
-    print("dl.data.numChannels: ", dl.data.numChannels)
-    dl.Model = dl.Mode.getModel(4, dl.data.numChannels)
+    
+# In the version that reads dl from a pkl file, I use dl.data.NumChannels, and it is 3
+# In this version, I found that dl.data.nchannels=1, and I cannot change it to 3 (raises an Atribure error)
+# so I have to use dl.data.nchannels, which is set to 3
+    print("dl.data.nchannels: ", dl.data.nchannels)
+    dl.Model = dl.Mode.getModel(4, dl.data.nchannels)
     print('load model')
     if loadweights is not None:
         dl.Model.load_weights(loadweights)
