@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import sys
 import tensorflow as tf
 
-os.environ["CUDA_VISIBLE_DEVICES"]="0" # set GPU if multiple present
+os.environ["CUDA_VISIBLE_DEVICES"]="1" # set GPU if multiple present
 
 
 def main():
@@ -66,7 +66,7 @@ def main():
 # a pkl file holds a data structure or object. IN this case, it is expected to hold a DeepLearning object that was saved
 # using File>Save DL Object... in mianalyzer. 
 # If the dl object is directly created then this is not needed.
-    modelname = input("Enter modelname without extension or use default") or modelname
+    modelname = input("Enter modelname without extension or use default\n") or modelname
 
 # stem, pop, background and unlabeled
 # We should have a single cell where aall of the model and training parameters are set
