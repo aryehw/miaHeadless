@@ -19,7 +19,9 @@ import matplotlib.pyplot as plt
 import sys
 import tensorflow as tf
 
-os.environ["CUDA_VISIBLE_DEVICES"]="1" # set GPU if multiple present
+from pprint import pprint
+
+os.environ["CUDA_VISIBLE_DEVICES"]="0" # set GPU if multiple present
 
 
 def main():
@@ -68,18 +70,19 @@ def main():
 # If the dl object is directly created then this is not needed.
     modelname = input("Enter modelname without extension or use default\n") or modelname
 
-# stem, pop, background and unlabeled
-# We should have a single cell where aall of the model and training parameters are set
-    numclasses = 4
-
 # trainingdata is a directory that holds the annotated images. The labels must be in trainingdata/Segmentation_labels/
 # and they must be npz files.
     trainingdata = input("Path to folder containing training images, or use default\n") or trainingdata
     validationdata = None
+    
+    BackBone = input("input backbone or enter for default\n") or 'densenet201'
+
+    strEpochs = input("input number of epochs or enter to use the predefined value in a pkl file\n") or '0'
+    epochs = int(strEpochs)
+
+
 
     print("model: ", modelname)
-
-
         
     print('load settings')
 #    filehandler = open(modelname + '.pkl', 'rb')
@@ -90,22 +93,61 @@ def main():
     print('loaded pkl')
 #    sys.exit()
 
-#   get number of epochs for this run
-    epochs = input('Enter number of epochs, or enter for default (50)\n') or '50'
-    dl.epochs = int(epochs)
+
+####################################
+# Set up various training paramteres
+
+# stem, pop, background and unlabeled
+    numClasses = 4
     
+# we can change the number of epochs and the backbone of the loaded dl object
+    print(dl.epochs)
+    if epochs != 0:
+        dl.epochs = epochs
+    if dl.Mode.backbone != BackBone:
+        dl.Mode.backbone = BackBone
+    pprint(vars(dl.Mode))
+#####################################    
+#####################################      
+    '''
+    This code saves the dl object as a pkl file. 
+    It is saved in teh pkl directory, but mabe I should save it in the trained model directory.
+    '''
+
+    pklFileHandler = open(pklDir+modelname+'_ep'+str(dl.epochs) + '.pkl','wb')
+    #import sys
+    #print(sys.getrecursionlimit())
+    #sys.setrecursionlimit(4*sys.getrecursionlimit())
+    #print(sys.getrecursionlimit())
+
+    hed = dl.hed
+    dl.hed = None
+    model = dl.Model
+    dl.Model = None
+    pickle.dump(dl, pklFileHandler)
+    dl.hed = hed
+    dl.Model = model
+
+######################################     
+        
     print('init model')
     
-    from pprint import pprint
     pprint(vars(dl))
     dl.data.nchannels = 3
     pprint(vars(dl.data))
     
-#    dl.initModel(numclasses)
+    dl.initModel(numClasses)
+    
+    dl.Model = dl.Mode.getModel(numClasses, 3)
+
+    '''
     policy = tf.keras.mixed_precision.Policy('float32')
     print('after policy')
     print("dl.data.numChannels: ", dl.data.numChannels)
     dl.Model = dl.Mode.getModel(4, dl.data.numChannels)
+    
+    
+    '''
     print('load model')
     if loadweights is not None:
         dl.Model.load_weights(loadweights)
@@ -119,13 +161,29 @@ def main():
             
     
     print('saving weights')
-    dl.Model.save_weights(modelDir+modelname + '.h5')
+    modelname=dl.Mode.architecture+'_'+dl.Mode.backbone
+    dl.Model.save_weights(modelDir+modelname+'_ep'+str(dl.epochs) + '.h5')
     print('saving training data')
-    dl.saveTrainingRecord(modelDir+modelname +'.csv')
+    dl.saveTrainingRecord(modelDir+modelname+'_ep'+str(dl.epochs) +'.csv')
 #   print('saving model')
 #   dl.Model.save(modelDir+'full')
     
-    files = glob.glob(trainingdata + '*.jpg')
+
+
+# This code does a prediction on a directory of jpg images (could be any type, but that is what I have).
+# predictionFolder contains the images which ill be predicted, and a subdirectory with the modelname will be created
+# to hold the predicted segmentation.
+
+    predictionFolder = input('Enter folder for prediction or use default\n')  or predictionFolder
+    outputPath = predictionFolder + modelname+'_ep'+str(dl.epochs)+'/'
+    try:
+        os.mkdir(outputPath)
+    except FileExistsError:
+        pass
+    files = glob.glob(predictionFolder + '*.jpg')
+    print(len(files))
+    
+    
     count=0
     for i in files:
         img = cv2.imread(i)
@@ -134,6 +192,7 @@ def main():
         print(type(prediction))
         plt.imshow(prediction)
         plt.show()
+    # use the following code to limit the number of predicted files, when doing quick tests.
         count += 1
         if count>3:
             break
