@@ -2,7 +2,8 @@
 Code to use mianalyzer headless 
 
 ## trainHeadless_noPkl.ipynb 
-A jupyter script that can either load a dl object from a pkl file, or set up the dl object without the pkl file.
+A jupyter script that can either load a dl object from a pkl file, or set up the dl object without the pkl file. Currently, setting up the dl object without reading it from a saved pkl file does not produce accurate results. 
+However, after the pkl file is loaded, the backbone and number of epochs can be changed.
 
 ## train_headless.py 
 A python script that reads the dl structure
