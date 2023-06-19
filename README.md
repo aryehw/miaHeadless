@@ -2,6 +2,15 @@
 Code to use mianalyzer headless. The jypyter scripts are more up to date.
 When I get a chance, I update the .py versions.
 
+mianalyzer is a open source standalone deep learning (DL) application with a
+simple GUI interface for building DL networks of various
+architectures and backbones.
+mianalyzer was writen by Nils Koerber (nils.koerber@bfr.bund.de)
+
+The codes in this project are meant to enable mianalyzer to be run headless.
+This allows mianalyzer to be run on remote GPU servers over networks that
+cannot support GUI update in reasonable time.
+
 ## trainHeadless_noPkl.ipynb 
 A jupyter script that can either load a dl object from a pkl file,
 or set up the dl object without the pkl file.
