@@ -47,3 +47,8 @@ These scripts require the presence of mianalyzer modules in the import path.
 The required directories are mia/dl and mia/util, which can be found on the
 MIAnalyzer github page:
 https://github.com/MIAnalyzer/MIA/
+
+## convert.ipynb Contour.py Shape.py
+These are utilities provided by the author of mianalyzer that convert label
+images (where the each pixel has a value that corresponds to its class) to
+contours stored in npz files, which mianalyzer uses as Segmentation_labels.
