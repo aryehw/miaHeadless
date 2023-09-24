@@ -13,15 +13,13 @@ import math
 from skimage import morphology
 from skimage.morphology import medial_axis, skeletonize
 
-    
-
 BACKGROUNDCLASS = 255
 from Shape import Shape, Shapes, FreeFormContour_ID, FreeFormContour_ID_legacy
 
 
 class Contours(Shapes):
     def __init__(self):
-        self.minSize = 100
+        self.minSize = 3
         super(Contours,self).__init__(FreeFormContour_ID)
         
     def ShapeAlreadyExist(self,c):
@@ -195,7 +193,7 @@ class Contour(Shape):
         return (cX, cY)
     
     def getPerimeter(self):
-        return cv.arcLength(self.points,True)
+        return cv2.arcLength(self.points,True)
     
     def getSkeletonLength(self, smoothing):
         if self.skeleton is None:
@@ -235,52 +233,94 @@ class Contour(Shape):
         # contour based length measurement
         contours, _ = findContours(skel)
 
-        self.skeleton = [cv2.approxPolyDP(c + ([l,t]), 3, True) for c in contours if len(c)>0]
+        self.skeleton = [cv2.approxPolyDP(c + ([l,t]), 1, True) for c in contours if len(c)>0]
         return self.skeleton
     
+        ## pixel based length measurement
+#        diag_kernel = np.array(([-1, 1, -1],	[1, -10, 1],	[-1, 1, -1]), dtype="int")
+#        diac = cv2.filter2D(skel,-1, diag_kernel)
+#        diag_steps = np.count_nonzero(diac)//2 - 1
+#        total = np.count_nonzero(skel)
+#        length = total - diag_steps + diag_steps * np.sqrt(2)
+#        pts = np.where(skel>0) 
+#        x = pts[0] + t
+#        y = pts[1] + l
+#
+#        return x,y
 
 
 # utilities
-def drawcontour(image, contour, ignoreclasslabel=False, extraclass = False):
-    cnt = contour.points
-    inner = contour.innercontours
-    if contour.numPoints() > 0:
-        if extraclass:
-            cv2.drawContours(image, [cnt], 0, (2), -1) 
-            cv2.drawContours(image, [cnt], 0, (1), 3) 
+def drawcontour(image, contour, ignoreclasslabel=False, separateContours = False):
+    contouring(image, [contour], classlabel=contour.classlabel, ignoreclasslabel=False, separateContours = False)
+
+
+def drawcontours(image, contours, classlabel=1, ignoreclasslabel=False, separateContours = False):
+    cnt_with_innercnts = [x for x in contours if x.innercontours != []]
+    cnt_without_innercnts = [x for x in contours if x.innercontours == []]
+    
+    for c in cnt_with_innercnts:
+        contouring(image, [c], classlabel, ignoreclasslabel, separateContours)
+    contouring(image, cnt_without_innercnts, classlabel, ignoreclasslabel, separateContours)
+    
+def contouring(image, contours, classlabel=1, ignoreclasslabel=False, separateContours = False):
+    
+    cnt = [x.points for x in contours if x.numPoints() > 0]
+    inner = []
+    [inner.extend(x.innercontours) for x in contours if x.innercontours != []]
+    ref_image = image.copy()
+    if separateContours:
+        for c in cnt:
+            cv2.drawContours(image, [c], -1, (0), 3)  
+            cv2.drawContours(image, [c], -1, (1), -1) 
+    else:
+        if ignoreclasslabel:
+            cv2.drawContours(image, cnt, -1, (1), -1)  
+            cv2.drawContours(image, inner, -1, (BACKGROUNDCLASS), -1)
+            # the contour of inner needs to be redrawn and belongs to outer, otherwise the inner contour is growing on each iteration
+            cv2.drawContours(image, inner, -1, (1), 1)
+            image[image==BACKGROUNDCLASS] = ref_image[image==BACKGROUNDCLASS]
+
+        elif classlabel != 0:
+            cv2.drawContours(image, cnt, -1, (int(classlabel)), -1)  
+            cv2.drawContours(image, inner, -1, (BACKGROUNDCLASS), -1)
+            # the contour of inner needs to be redrawn and belongs to outer, otherwise the inner contour is growing on each iteration
+            cv2.drawContours(image, inner, -1, (int(classlabel)), 1)
+            image[image==BACKGROUNDCLASS] = ref_image[image==BACKGROUNDCLASS]
         else:
-            # cv2.drawContours(image, [cnt], 0, (0), 3)              
-            cv2.drawContours(image, [cnt], -1, (int(contour.classlabel)), -1)  
+            cv2.drawContours(image, cnt, -1, (BACKGROUNDCLASS), -1)  
             cv2.drawContours(image, inner, -1, (0), -1)
             # the contour of inner needs to be redrawn and belongs to outer, otherwise the inner contour is growing on each iteration
-            cv2.drawContours(image, inner, -1, (int(contour.classlabel)), 1)
-            
-    
+            cv2.drawContours(image, inner, -1, (BACKGROUNDCLASS), 1)
 
 
-def drawContoursToLabel(label, contours, extraclass = False):
+def drawContoursToLabel(label, contours, drawbackground = True):
+    if contours == []:
+        return
 
-	
     maxclass = max([x.classlabel for x in contours])
     for i in range(maxclass+1):
         class_cnts = filter(lambda x: x.classlabel == i, contours)
-        for c in class_cnts:
-            drawcontour(label, c, extraclass=extraclass)
-
-
+        if i== 0:
+            label = drawbackgroundToLabel(label, list(class_cnts))
+        else:
+            drawcontours(label, list(class_cnts), classlabel=i)
+        
+    if not drawbackground:
+        label[label==BACKGROUNDCLASS] = 0
+    
     return label
 
 def drawbackgroundToLabel(label, background):
     if not background or background == list():
         label[:] = (BACKGROUNDCLASS)
     else:
-        for c in background:
-            drawcontour(label, c) 
+        drawcontours(label, background, classlabel=0)
     return label
        
 def extractContoursFromLabel(image, ext_only = False, offset=(0,0)):
-    image = np.squeeze(image)
+    image = np.squeeze(image).astype(np.uint8)
     ret_contours = []
+    counter = -1
 
     # contours
     if np.all(image == BACKGROUNDCLASS):
@@ -288,16 +328,16 @@ def extractContoursFromLabel(image, ext_only = False, offset=(0,0)):
     maxclass = np.max(image[image!=BACKGROUNDCLASS])
     for i in range(maxclass+1):
         if i == 0: # background
-            continue
             if np.all(image != 0):
                 continue
             else:
                 thresh = (image == BACKGROUNDCLASS).astype(np.uint8)
         else:
             thresh = (image == i).astype(np.uint8)
+
         contours, hierarchy = findContours(thresh, ext_only, offset)
         if contours is not None:
-            counter = -1
+            
             for k, c in enumerate(contours):
                 parent = hierarchy [0][k][3]
                 if parent > -1:
@@ -308,9 +348,9 @@ def extractContoursFromLabel(image, ext_only = False, offset=(0,0)):
     ret_contours.reverse()
     return ret_contours
 
-def drawContoursToImage(image, contours): 
-    for c in contours:
-        drawcontour(image, c, 1)
+def drawContoursToImage(image, contours, separate = False):  
+    drawcontours(image, contours, ignoreclasslabel=True, separateContours=separate)
+
 
 def extractContoursFromImage(image, ext_only = False, offset = (0,0)):
     image = np.squeeze(image).astype(np.uint8)
@@ -366,11 +406,16 @@ def loadContours(filename):
     return unpackContours(data)
 
 def findContours(image, ext_only = False, offset=(0,0)):
-    structure = cv2.RETR_EXTERNAL if ext_only else cv2.RETR_CCOMP 
+    structure = cv2.RETR_EXTERNAL if ext_only else cv2.RETR_CCOMP
+
+    # requires opencv 4 or greater, opencv 3 returns 3 params
     contours, hierarchy = cv2.findContours(image, structure , cv2.CHAIN_APPROX_SIMPLE, offset = offset)
+
     return contours, hierarchy
 
-
+def removeBackground(image):
+    image[image==BACKGROUNDCLASS] = 0
+    return image
 
 def checkIfContourInListOfContours(contour, contours):
     # returns True if contour is contained in contours
@@ -391,19 +436,19 @@ def matchcontours(contour1, contour2):
     return math.sqrt((c1[0]-c2[0])**2 + (c1[1]-c2[1])**2)
 
 def getContourMinIntensity(image, contour):
-    mask = np.zeros(image.shape, dtype = np.uint8)
-    cv2.drawcontours(mask, contour, -1,255,-1)
-    minval = cv2.min(image[mask>0])
+    mask = np.zeros(image.shape[0:2], dtype = np.uint8)
+    cv2.drawContours(mask, contour.points, -1,255,-1)
+    minval = np.min(image[mask>0])
     return minval
 
 def getContourMeanIntensity(image, contour):
-    mask = np.zeros(image.shape, dtype = np.uint8)
-    cv2.drawcontours(mask, contour, -1,255,-1)
-    mean = cv2.mean(image, mask=mask)
-    return mean
+    mask = np.zeros(image.shape[0:2], dtype = np.uint8)
+    cv2.drawContours(mask, contour.points, -1,255,-1)
+    meanval = np.mean(image[mask>0])
+    return meanval
 
 def getContourMaxIntensity(image, contour):
-    mask = np.zeros(image.shape, dtype = np.uint8)
-    cv2.drawcontours(mask, contour, -1,255,-1)
-    maxval = cv2.max(image[mask>0])
+    mask = np.zeros(image.shape[0:2], dtype = np.uint8)
+    cv2.drawContours(mask, contour.points, -1,255,-1)
+    maxval = np.max(image[mask>0])
     return maxval
